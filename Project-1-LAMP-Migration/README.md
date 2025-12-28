@@ -59,13 +59,9 @@ flowchart LR
     IAM -.-> APP2
     CI -.-> ASG
   end
+```mermaid
 
-  %% =========================
-  %% Comparison Notes
-  %% =========================
-  T -. 问题 .-> O
-
-## Why This Architecture
+### Why This Architecture
 
 This design intentionally avoids premature microservices or over-engineering.
 
