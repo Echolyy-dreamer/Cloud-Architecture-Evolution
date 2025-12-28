@@ -14,13 +14,13 @@ flowchart LR
   %% =========================
   %% Traditional Architecture
   %% =========================
-  subgraph T["❌ Traditional Three-Tier Web Architecture"]
-    U1["Users<br/>(Global Access)"]
-    LB1["Single Load Balancer<br/>(or None)"]
-    WEB1["Web Layer<br/>(Apache / PHP)"]
-    APP1["Application Logic<br/>(Tightly Coupled)"]
-    DB1["Single Database<br/>(MySQL)"]
-    FS1["Local File Storage"]
+  subgraph T["❌ 传统三层 Web 架构"]
+    U1["用户<br/>(全球访问)"]
+    LB1["单一负载均衡<br/>(或无 LB)"]
+    WEB1["Web 层<br/>(Apache/PHP)"]
+    APP1["应用逻辑<br/>(紧耦合)"]
+    DB1["单点数据库<br/>(MySQL)"]
+    FS1["本地文件存储"]
 
     U1 --> LB1 --> WEB1 --> APP1 --> DB1
     APP1 --> FS1
@@ -29,25 +29,25 @@ flowchart LR
   %% =========================
   %% Optimized Architecture
   %% =========================
-  subgraph O["✅ Optimized AWS-Native Architecture"]
-    U2["Users<br/>(Global)"]
+  subgraph O["✅ 优化后的云原生架构"]
+    U2["用户<br/>(全球)"]
 
-    CDN["CloudFront<br/>(Static Acceleration)"]
-    WAF["AWS WAF + Shield"]
+    CDN["CDN<br/>(静态资源加速)"]
+    WAF["WAF + Shield"]
     ALB["ALB / NLB"]
 
-    ASG["Auto Scaling Group<br/>(Web / App Tier)"]
-    APP2["Stateless Application<br/>(EC2 / Containers)"]
+    ASG["Auto Scaling<br/>Web/App 层"]
+    APP2["Stateless App<br/>(容器 / EC2)"]
 
-    CACHE["Cache Layer<br/>(ElastiCache / Redis)"]
+    CACHE["缓存层<br/>(Redis / ElastiCache)"]
 
     RDSW["RDS Writer"]
     RDSR["RDS Read Replica"]
 
-    S3["Amazon S3<br/>(Static Assets / Archive)"]
-    BKP["Cross-AZ / Cross-Region<br/>Backups & Snapshots"]
+    S3["对象存储 S3<br/>(静态/归档)"]
+    BKP["跨区备份<br/>+ Snapshot"]
 
-    IAM["IAM<br/>(Least Privilege)"]
+    IAM["IAM / Least Privilege"]
     CI["IaC / CI-CD"]
 
     U2 --> CDN --> WAF --> ALB
@@ -63,4 +63,6 @@ flowchart LR
     IAM -.-> APP2
     CI -.-> ASG
   end
+
+
 
