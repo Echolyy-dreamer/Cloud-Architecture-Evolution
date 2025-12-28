@@ -1,3 +1,5 @@
+### Architecture Diagram
+```mermaid
 flowchart TB
 
     %% =====================
