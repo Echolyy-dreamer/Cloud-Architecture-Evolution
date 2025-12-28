@@ -1,4 +1,4 @@
-```md
+
 ## Overview
 
 This design demonstrates how a small startup can evolve from a single on-premises LAMP server into a resilient, scalable, and AWS-native architecture — without over-provisioning and while preserving operational simplicity.
@@ -7,7 +7,7 @@ Rather than assuming known traffic patterns or steady growth, this architecture 
 
 ---
 
-## Architecture Diagram
+### Architecture Diagram
 
 ```mermaid
 flowchart LR
