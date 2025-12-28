@@ -1,48 +1,66 @@
+```md
 ## Overview
 
 This design demonstrates how a small startup can evolve from a single on-premises LAMP server into a resilient, scalable, and AWS-native architecture — without over-provisioning and while preserving operational simplicity.
 
 Rather than assuming known traffic patterns or steady growth, this architecture is intentionally designed for **uncertain and non-linear scaling**, allowing the system to grow naturally as the business evolves.
 
-### Architecture Diagram
+---
+
+## Architecture Diagram
+
 ```mermaid
-graph TD
-    %% =========================
-    %% Traditional Architecture
-    %% =========================
-    subgraph Legacy ["❌ Traditional Monolith (On-Prem)"]
-        direction TB
-        U1["User (Global)"] --> LB1["Single LB / No LB"]
-        LB1 --> APP1["Coupled Web/App (LAMP)"]
-        APP1 --> DB1[("Local MySQL")]
-        APP1 --> FS1["Local File System"]
-    end
+flowchart LR
+  %% =========================
+  %% Traditional Architecture
+  %% =========================
+  subgraph T["❌ Traditional Three-Tier Web Architecture"]
+    U1["Users<br/>(Global Access)"]
+    LB1["Single Load Balancer<br/>(or None)"]
+    WEB1["Web Layer<br/>(Apache / PHP)"]
+    APP1["Application Logic<br/>(Tightly Coupled)"]
+    DB1["Single Database<br/>(MySQL)"]
+    FS1["Local File Storage"]
 
-    %% =========================
-    %% Optimized Architecture
-    %% =========================
-    subgraph Cloud ["✅ AWS Cloud-Native (Evolution)"]
-        direction TB
-        U2["User (Global)"] --> CDN["CloudFront (Edge)"]
-        CDN --> WAF["WAF / Shield"]
-        WAF --> ALB["ALB (Layer 7)"]
-        
-        subgraph Compute ["Scalable Tier"]
-            ALB --> ASG["Auto Scaling Group"]
-            ASG --> EC2["Stateless EC2/Containers"]
-        end
+    U1 --> LB1 --> WEB1 --> APP1 --> DB1
+    APP1 --> FS1
+  end
 
-        subgraph Storage ["Data Tier"]
-            EC2 --> Redis[("ElastiCache (Session)")]
-            EC2 --> RDS_W[("RDS Writer")]
-            RDS_W -.-> RDS_R[("RDS Read Replica")]
-            EC2 --> S3[("S3 Object Storage")]
-        end
-    end
+  %% =========================
+  %% Optimized Architecture
+  %% =========================
+  subgraph O["✅ Optimized AWS-Native Architecture"]
+    U2["Users<br/>(Global)"]
 
-    %% Style
-    style Legacy fill:#fff1f0,stroke:#ffa39e
-    style Cloud fill:#f6ffed,stroke:#b7eb8f
-    style RDS_W fill:#e6f7ff
-    style RDS_R fill:#e6f7ff
+    CDN["CloudFront<br/>(Static Acceleration)"]
+    WAF["AWS WAF + Shield"]
+    ALB["ALB / NLB"]
+
+    ASG["Auto Scaling Group<br/>(Web / App Tier)"]
+    APP2["Stateless Application<br/>(EC2 / Containers)"]
+
+    CACHE["Cache Layer<br/>(ElastiCache / Redis)"]
+
+    RDSW["RDS Writer"]
+    RDSR["RDS Read Replica"]
+
+    S3["Amazon S3<br/>(Static Assets / Archive)"]
+    BKP["Cross-AZ / Cross-Region<br/>Backups & Snapshots"]
+
+    IAM["IAM<br/>(Least Privilege)"]
+    CI["IaC / CI-CD"]
+
+    U2 --> CDN --> WAF --> ALB
+    ALB --> ASG --> APP2
+
+    APP2 --> CACHE
+    APP2 --> RDSW
+    RDSW --> RDSR
+
+    APP2 --> S3
+    RDSW --> BKP
+
+    IAM -.-> APP2
+    CI -.-> ASG
+  end
 
