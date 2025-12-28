@@ -9,6 +9,7 @@ Rather than assuming known traffic patterns or steady growth, this architecture 
 
 ### Architecture Diagram
 
+```mermaid
 flowchart TB
   %% =========================
   %% Traditional Architecture
