@@ -59,13 +59,4 @@ flowchart LR
     IAM -.-> APP2
     CI -.-> ASG
   end
-```mermaid
 
-### Why This Architecture
-
-This design intentionally avoids premature microservices or over-engineering.
-
-Key design goals:
-- Scale only when traffic arrives
-- Minimize operational overhead for a small team
-- Preserve a clear migration path without lock-in
