@@ -6,57 +6,43 @@ Rather than assuming known traffic patterns or steady growth, this architecture 
 
 ### Architecture Diagram
 ```mermaid
-flowchart LR
-  %% =========================
-  %% Traditional Architecture
-  %% =========================
-  subgraph T["❌ 传统三层 Web 架构"]
-    U1["用户<br/>(全球访问)"]
-    LB1["单一负载均衡<br/>(或无 LB)"]
-    WEB1["Web 层<br/>(Apache/PHP)"]
-    APP1["应用逻辑<br/>(紧耦合)"]
-    DB1["单点数据库<br/>(MySQL)"]
-    FS1["本地文件存储"]
+graph TD
+    %% =========================
+    %% Traditional Architecture
+    %% =========================
+    subgraph Legacy ["❌ Traditional Monolith (On-Prem)"]
+        direction TB
+        U1["User (Global)"] --> LB1["Single LB / No LB"]
+        LB1 --> APP1["Coupled Web/App (LAMP)"]
+        APP1 --> DB1[("Local MySQL")]
+        APP1 --> FS1["Local File System"]
+    end
 
-    U1 --> LB1 --> WEB1 --> APP1 --> DB1
-    APP1 --> FS1
-  end
+    %% =========================
+    %% Optimized Architecture
+    %% =========================
+    subgraph Cloud ["✅ AWS Cloud-Native (Evolution)"]
+        direction TB
+        U2["User (Global)"] --> CDN["CloudFront (Edge)"]
+        CDN --> WAF["WAF / Shield"]
+        WAF --> ALB["ALB (Layer 7)"]
+        
+        subgraph Compute ["Scalable Tier"]
+            ALB --> ASG["Auto Scaling Group"]
+            ASG --> EC2["Stateless EC2/Containers"]
+        end
 
-  %% =========================
-  %% Optimized Architecture
-  %% =========================
-  subgraph O["✅ 优化后的云原生架构"]
-    U2["用户<br/>(全球)"]
+        subgraph Storage ["Data Tier"]
+            EC2 --> Redis[("ElastiCache (Session)")]
+            EC2 --> RDS_W[("RDS Writer")]
+            RDS_W -.-> RDS_R[("RDS Read Replica")]
+            EC2 --> S3[("S3 Object Storage")]
+        end
+    end
 
-    CDN["CDN<br/>(静态资源加速)"]
-    WAF["WAF + Shield"]
-    ALB["ALB / NLB"]
-
-    ASG["Auto Scaling<br/>Web/App 层"]
-    APP2["Stateless App<br/>(容器 / EC2)"]
-
-    CACHE["缓存层<br/>(Redis / ElastiCache)"]
-
-    RDSW["RDS Writer"]
-    RDSR["RDS Read Replica"]
-
-    S3["对象存储 S3<br/>(静态/归档)"]
-    BKP["跨区备份<br/>+ Snapshot"]
-
-    IAM["IAM / Least Privilege"]
-    CI["IaC / CI-CD"]
-
-    U2 --> CDN --> WAF --> ALB
-    ALB --> ASG --> APP2
-
-    APP2 --> CACHE
-    APP2 --> RDSW
-    RDSW --> RDSR
-
-    APP2 --> S3
-    RDSW --> BKP
-
-    IAM -.-> APP2
-    CI -.-> ASG
-  end
+    %% Style
+    style Legacy fill:#fff1f0,stroke:#ffa39e
+    style Cloud fill:#f6ffed,stroke:#b7eb8f
+    style RDS_W fill:#e6f7ff
+    style RDS_R fill:#e6f7ff
 
