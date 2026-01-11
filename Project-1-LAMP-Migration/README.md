@@ -10,79 +10,95 @@ Rather than assuming known traffic patterns or steady growth, this architecture 
 ### Architecture Diagram
 
 ```mermaid
+
 flowchart TB
-    %% =========================
-    %% Traditional Architecture
-    %% =========================
-    subgraph T["❌ 传统旧架构 (On-Prem)"]
+    %% ========================================================
+    %% TRADITIONAL ARCHITECTURE (LEGACY)
+    %% ========================================================
+    subgraph T ["❌ TRADITIONAL ARCHITECTURE — LEGACY MONOLITH"]
         direction TB
-        U1["用户 (全球访问)"]
-        WEB1["单机 Web (Apache/PHP)<br/>所有请求混杂流向服务器"]
-        DB1["单点数据库 (MySQL)"]
-        FS1["本地磁盘<br/>(存储代码/媒体/Session)"]
+        U1["Global User"]
+        
+        subgraph OldServer ["Local Data Center / Single Instance ........................"]
+            WEB1["Web Tier: Apache & PHP"]
+            DB1["Local MySQL Database"]
+            FS1["Local Direct Attached Storage"]
+        end
 
         U1 --> WEB1
-        WEB1 --> DB1
-        WEB1 --> FS1
+        WEB1 --- DB1
+        WEB1 --- FS1
     end
 
-    %% =========================
-    %% Optimized Architecture
-    %% =========================
-    subgraph O["✅ 优化后的 AWS 蓝图架构"]
+    %% ========================================================
+    %% OPTIMIZED AWS BLUEPRINT
+    %% ========================================================
+    subgraph O ["✅ OPTIMIZED AWS CLOUD-NATIVE BLUEPRINT"]
         direction TB
-        U2["用户 (全球)"]
+        U2["Global User"]
         
-        %% 接入与安全层
-        CF{"CloudFront<br/>(分流中心)"}
-        WAF["WAF + Shield<br/>(边缘安全)"]
+        %% Edge Layer
+        CF["CloudFront Content Delivery Network"]
+        WAF["AWS WAF / Shield Security"]
         
-        %% 路径分流 - 静态
-        subgraph StaticLayer ["存储层 (静态)"]
-            S3["Amazon S3<br/>(媒体文件)"]
-            GLC["S3 Glacier<br/>(归档规则)"]
+        %% Storage Tier (Static Assets)
+        subgraph S_Tier ["Storage & Archival Tier"]
+            S3["Amazon S3 Bucket"]
+            GLC["S3 Glacier Deep Archive"]
         end
 
-        %% 路径分流 - 动态
-        subgraph ComputeLayer ["计算层 (动态)"]
-            ALB["ALB 负载均衡"]
-            ASG["Auto Scaling Group<br/>(无状态 EC2)"]
-            SSM["SSM 管理端<br/>(无 SSH 秘钥)"]
+        %% Compute Tier (Dynamic Application)
+        subgraph C_Tier ["Elastic Compute Tier (Multi-AZ)"]
+            ALB["Application Load Balancer"]
+            ASG["Auto Scaling Group (EC2)"]
         end
 
-        %% 数据中心
-        subgraph DataLayer ["数据中心 (高吞吐)"]
-            CACHE["ElastiCache Redis<br/>(缓存/Session)"]
-            Proxy["RDS Proxy<br/>(连接池)"]
+        %% Data Tier (Persistence & Cache)
+        subgraph D_Tier ["Distributed Data Tier"]
+            CACHE["ElastiCache for Redis"]
+            Proxy["RDS Proxy (Conn Pool)"]
             
-            subgraph AuroraCluster ["Aurora Serverless v2"]
-                RDSW["Primary (写)"]
-                RDSR["Reader (读)"]
+            subgraph Aurora ["Aurora Serverless v2 Cluster"]
+                RDSW["Primary Instance (RW)"]
+                RDSR["Reader Instance (RO)"]
             end
         end
 
-        %% 安全审计
-        KMS["KMS 加密中心<br/>(CMK 托管)"]
+        %% Observability & Governance
+        subgraph M_Tier ["Management & Observability"]
+            CWL["CloudWatch Logs & Metrics"]
+            XRY["AWS X-Ray Tracing"]
+            KMS["KMS (Key Management)"]
+            SSM["SSM Session Manager"]
+            VPCE["VPC Endpoints (PrivateLink)"]
+        end
 
-        %% 核心逻辑连线 (动静分离细节)
+        %% Core Traffic Routing (Path-Based)
         U2 --> CF
         CF --> WAF
-        WAF -- "/wp-content/*" --> S3
-        WAF -- "Default (*)" --> ALB
+        WAF -- "Static Path: /wp-content/*" --> S3
+        WAF -- "Default Path: / (PHP)" --> ALB
         
-        %% 动态请求流转
+        %% Internal Traffic Flow
         ALB --> ASG
         ASG --> CACHE
         ASG --> Proxy
         Proxy --> RDSW
-        RDSW -.->|读写分离| RDSR
+        RDSW -.->|Multi-AZ Sync| RDSR
         
-        %% 归档与加密流
-        S3 -->|生命周期| GLC
-        KMS -.->|静态加密| S3
-        KMS -.->|静态加密| AuroraCluster
-        SSM -.->|安全登录| ASG
+        %% Observability & Private Connectivity
+        ASG -.->|Logs/Metrics| CWL
+        ASG -.->|Traces| XRY
+        ASG -.->|Private Access| VPCE
+        VPCE -.-> S3
+        VPCE -.-> KMS
+        
+        %% Security & Archival
+        S3 -->|Lifecycle Policy| GLC
+        KMS -.->|Envelope Encryption| S3
+        KMS -.->|Envelope Encryption| Aurora
+        SSM -.->|Secure Tunnel| ASG
     end
 
-    %% 演进箭头
-    T ==>|云原生现代化重构| O
+    %% Evolution Marker
+    T ==>|Modernization & Cloud Transformation| O
