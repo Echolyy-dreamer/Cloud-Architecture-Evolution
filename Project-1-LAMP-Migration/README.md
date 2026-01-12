@@ -17,7 +17,7 @@ flowchart TB
     %% ========================================================
     subgraph T ["❌ TRADITIONAL ARCHITECTURE — LEGACY MONOLITH"]
         direction TB
-        U1["Global User"]
+        U1["Global User (IPv4 Only)"]
         
         subgraph OldServer ["Local Data Center / Single Instance ........................"]
             WEB1["Web Tier: Apache & PHP"]
@@ -35,70 +35,109 @@ flowchart TB
     %% ========================================================
     subgraph O ["✅ OPTIMIZED AWS CLOUD-NATIVE BLUEPRINT"]
         direction TB
-        U2["Global User"]
+        U2["Global User (Dual-Stack IPv4/v6)"]
         
+        %% ======================
         %% Edge Layer
-        CF["CloudFront Content Delivery Network"]
-        WAF["AWS WAF / Shield Security"]
-        
-        %% Storage Tier (Static Assets)
-        subgraph S_Tier ["Storage & Archival Tier"]
-            S3["Amazon S3 Bucket"]
+        %% ======================
+        CF["CloudFront + Origin Shield"]
+        WAF["AWS WAF (Edge Inspection)"]
+
+        %% ======================
+        %% Storage Tier
+        %% ======================
+        subgraph S_Tier ["Storage Tier"]
+            S3["S3 Intelligent-Tiering"]
             GLC["S3 Glacier Deep Archive"]
         end
 
-        %% Compute Tier (Dynamic Application)
-        subgraph C_Tier ["Elastic Compute Tier (Multi-AZ)"]
-            ALB["Application Load Balancer"]
-            ASG["Auto Scaling Group (EC2)"]
+        %% ======================
+        %% Compute Tier
+        %% ======================
+        subgraph C_Tier ["Compute Tier"]
+            ALB["ALB (Dual-Stack)"]
+            ASG["ASG (m8g Graviton4 + Warm Pool)"]
         end
 
-        %% Data Tier (Persistence & Cache)
+        %% ======================
+        %% Distributed Data Tier
+        %% ======================
         subgraph D_Tier ["Distributed Data Tier"]
-            CACHE["ElastiCache for Redis"]
-            Proxy["RDS Proxy (Conn Pool)"]
-            
-            subgraph Aurora ["Aurora Serverless v2 Cluster"]
-                RDSW["Primary Instance (RW)"]
-                RDSR["Reader Instance (RO)"]
+            direction TB
+            CACHE["ElastiCache Redis (Serverless)"]
+            Proxy["RDS Proxy"]
+
+            subgraph Aurora ["Aurora Cluster (Multi-AZ)"]
+                direction LR
+                RDSW["Primary Node (RW)"]
+                RDSR["Reader Node (RO)"]
+                RDSW -. Sync_Replication .-> RDSR
             end
         end
 
-        %% Observability & Governance
-        subgraph M_Tier ["Management & Observability"]
-            CWL["CloudWatch Logs & Metrics"]
-            XRY["AWS X-Ray Tracing"]
-            KMS["KMS (Key Management)"]
-            SSM["SSM Session Manager"]
+        %% ======================
+        %% Management & Governance
+        %% ======================
+        subgraph M_Tier ["Management & Governance"]
             VPCE["VPC Endpoints (PrivateLink)"]
+            KMS["KMS (Envelope Encryption)"]
+            SSM["SSM Session Manager"]
         end
 
-        %% Core Traffic Routing (Path-Based)
+        %% ======================
+        %% Observability Plane (关键补全)
+        %% ======================
+        subgraph OBS ["Observability Plane (Request-Path Oriented)"]
+            METRICS["CloudWatch Metrics"]
+            LOGS["CloudWatch Logs"]
+            TRACE["X-Ray Traces"]
+        end
+
+        %% ======================
+        %% Core Routing
+        %% ======================
         U2 --> CF
         CF --> WAF
-        WAF -- "Static Path: /wp-content/*" --> S3
-        WAF -- "Default Path: / (PHP)" --> ALB
-        
-        %% Internal Traffic Flow
+        WAF -- Static_Path --> S3
+        WAF -- Default_PHP_Path --> ALB
+
+        %% ======================
+        %% Application Logic Flow
+        %% ======================
         ALB --> ASG
         ASG --> CACHE
+
         ASG --> Proxy
-        Proxy --> RDSW
-        RDSW -.->|Multi-AZ Sync| RDSR
-        
-        %% Observability & Private Connectivity
-        ASG -.->|Logs/Metrics| CWL
-        ASG -.->|Traces| XRY
-        ASG -.->|Private Access| VPCE
+        Proxy -- Writes --> RDSW
+        Proxy -. Reads_Scaling .-> RDSR
+
+        %% ======================
+        %% Connectivity & Lifecycle
+        %% ======================
+        ASG -.-> VPCE
         VPCE -.-> S3
         VPCE -.-> KMS
-        
-        %% Security & Archival
-        S3 -->|Lifecycle Policy| GLC
-        KMS -.->|Envelope Encryption| S3
-        KMS -.->|Envelope Encryption| Aurora
-        SSM -.->|Secure Tunnel| ASG
+        S3 --> GLC
+
+        %% ======================
+        %% Observability Bindings (信号即设计)
+        %% ======================
+        CF -. Edge_Trace .-> TRACE
+        ALB -. Request_Trace .-> TRACE
+        ASG -. App_Segments .-> TRACE
+        Proxy -. DB_Segments .-> TRACE
+
+        ASG -. App_Logs .-> LOGS
+        ALB -. Access_Logs .-> LOGS
+        WAF -. Security_Logs .-> LOGS
+
+        CACHE -. Hit_Rate .-> METRICS
+        Proxy -. Conn_Pool_Usage .-> METRICS
+        RDSR -. Replica_Lag .-> METRICS
+        ASG -. Scaling_Events .-> METRICS
     end
 
-    %% Evolution Marker
-    T ==>|Modernization & Cloud Transformation| O
+    %% ========================================================
+    %% Modernization Path
+    %% ========================================================
+    T ==>| Full-Stack Modernization | O
