@@ -1,149 +1,143 @@
 # Project 1: LAMP Stack Modernization & Cloud-Native Evolution
 
 ## 🌟 Executive Summary
-This project demonstrates the transition of a legacy **LAMP (Linux, Apache, MySQL, PHP)** monolith
-from an on-premises data center to a highly optimized, **2026-standard AWS Cloud-Native architecture**.
 
-Unlike a simple *Lift-and-Shift*, this evolution focuses on:
+This project demonstrates the modernization of a legacy **LAMP (Linux, Apache, MySQL, PHP)** monolith from an on-premises data center into a **production-grade AWS cloud-native architecture (2026-ready)**.
 
-- **Cost Governance in the IPv6 era**
-- **Zero-Trust Security**
-- **Serverless & Managed Data Tiering**
+This is **not** a lift-and-shift exercise. The focus is on:
 
-The architecture aligns with the expectations of:
-
-- **AWS Certified Solutions Architect – Professional (SAP-C02)**
-- **AWS Advanced Networking – Specialty (ANS-C01)**
+* IPv6-first cost governance
+* Zero-trust & private connectivity
+* Stateless compute and managed data tiers
+* Architect-level tradeoff reasoning (SAP-C02 / ANS-C01 aligned)
 
 ---
 
-## 🏗️ Architecture Evolution
+## 🎗️ Architecture Evolution
 
-### 1. Core Business Path (L1 View)
+### 1️⃣ Core Business Path — L1 (What Makes Money)
 
-The L1 view highlights the **primary revenue path**:
-- Global content delivery
-- Static asset offloading
-- Read / Write database separation
+> This diagram shows **only the revenue-critical request path**
+> Everything else (security, ops, governance) is intentionally hidden.
 
 ```mermaid
 flowchart TB
-    U2["Global User<br/>(Dual-Stack IPv4/IPv6)"]
-    CF["CloudFront<br/>+ Origin Shield"]
-    ALB["ALB<br/>(L7 Load Balancer)"]
-    ASG["ASG<br/>(Graviton4 m8g)"]
-    S3["S3<br/>(Static Assets)"]
-    Proxy["RDS Proxy"]
+    U["Global User (IPv4 / IPv6)"]
+    CF["CloudFront Origin Shield"]
+    ALB["Application Load Balancer"]
+    ASG["EC2 ASG Graviton4 (m8g)"]
+    S3["S3 Static & Media"]
+    RP["RDS Proxy"]
 
-    subgraph Aurora ["Aurora Cluster (Multi-AZ)"]
+    subgraph DB["Aurora MySQL (Multi-AZ)"]
         direction LR
-        RW["Primary (RW)"] -.->|Sync Replication| RO["Reader (RO)"]
+        RW["Writer"]
+        RO["Reader"]
     end
 
-    U2 --> CF
-    CF -- Dynamic --> ALB --> ASG
-    CF -- Static --> S3
-    ASG -- Media / Uploads --> S3
-    ASG --> Proxy
-    Proxy --> RW
-    Proxy -.-> RO
-🛡️ Production-Grade Details (L2 / L3 Deep Dive)
-<details> <summary><b>🚀 Click to Expand: Security, Observability & Governance</b></summary>
+    U --> CF
+    CF -->|Dynamic| ALB --> ASG
+    CF -->|Static| S3
+    ASG -->|Uploads| S3
+    ASG --> RP --> RW
+    RP -.-> RO
+```
 
-This diagram exposes the non-obvious enterprise layers required for
-production readiness: private connectivity, encryption boundaries,
-and request-path observability.
+🛡️ **Production-Grade Details (L2 / L3 Deep Dive)**
+
+<details>
+<summary><b>🚀 Click to Expand: Security, Observability & Governance</b></summary>
+
+This diagram exposes the **non-obvious enterprise layers** required for production readiness: private connectivity, encryption boundaries, and request-path observability.
+
 ```mermaid
 flowchart TB
-    subgraph O ["✅ 2026 OPTIMIZED BLUEPRINT"]
-        direction TB
-        U2["Global User"]
+    %% GLOBAL
+    U["Global User"]
 
-        %% Traffic & Compute
-        subgraph Traffic ["Edge & Compute"]
-            CF["CloudFront"]
-            WAF["AWS WAF"]
-            ALB["ALB"]
-            ASG["ASG (Graviton4)"]
-            U2 --> CF --> WAF --> ALB --> ASG
-        end
-
-        %% Data & Storage
-        subgraph Data ["Data & Storage"]
-            direction LR
-            S3["S3 Intelligent-Tiering"]
-            Proxy["RDS Proxy"]
-
-            subgraph Aurora ["Aurora Serverless v2"]
-                direction LR
-                RDSW["Primary"] -.->|Sync| RDSR["Reader"]
-            end
-
-            ASG --> Proxy --> Aurora
-            ASG -- Media --> S3
-            CF -- Cached Assets --> S3
-        end
-
-        %% Management & Observability
-        subgraph Ops ["Management & Observability"]
-            VPCE["VPC Endpoints<br/>(PrivateLink)"]
-            CWL["CloudWatch<br/>Logs & Metrics"]
-            XRY["X-Ray Traces"]
-            KMS["KMS<br/>(Envelope Encryption)"]
-            SSM["SSM<br/>(No-SSH Access)"]
-        end
-
-        %% Control Paths
-        ASG -.-> VPCE
-        VPCE -.-> S3
-        VPCE -.-> KMS
-        ASG -.-> CWL
-        ASG -.-> XRY
-        S3 --> GLC["Glacier Deep Archive"]
+    %% EDGE & COMPUTE
+    subgraph Edge["Edge & Compute Layer"]
+        CF["CloudFront"]
+        WAF["AWS WAF"]
+        ALB["ALB"]
+        ASG["EC2 ASG Graviton4"]
+        U --> CF --> WAF --> ALB --> ASG
     end
-💎 Technical Pillars & Optimization
-1. Advanced Networking (ANS-C01 Aligned)
 
-IPv6-First Design
-Backend workloads operate in IPv6-only subnets to avoid public IPv4 costs.
+    %% DATA
+    subgraph Data["Data Layer"]
+        S3["S3 Intelligent-Tiering"]
+        RP["RDS Proxy"]
 
-Egress-Only Internet Gateway
-Enables outbound connectivity without NAT Gateway cost or scaling limits.
+        subgraph Aurora["Aurora Serverless v2"]
+            direction LR
+            RW["Writer"] -.->|Sync| RO["Reader"]
+        end
 
-VPC Endpoints (PrivateLink)
-S3 and KMS traffic never leaves the AWS backbone.
+        ASG --> RP --> Aurora
+        ASG -->|Media| S3
+        CF -->|Cached| S3
+    end
 
-2. Compute & Cost Governance
+    %% OBSERVABILITY & CONTROL
+    subgraph Ops["Observability & Control"]
+        CW["CloudWatch"]
+        XR["X-Ray"]
+        KMS["KMS"]
+        VPCE["VPC Endpoints"]
+        SSM["SSM Session Manager"]
+    end
 
-Graviton4 (m8g)
-~40% price-performance improvement for PHP-FPM workloads.
+    %% CONTROL FLOWS
+    ASG -.-> CW
+    ASG -.-> XR
+    ASG -.-> VPCE
+    VPCE -.-> S3
+    VPCE -.-> KMS
+    S3 --> GA["Glacier Deep Archive"]
+```
 
-Stateless Compute
-Media and static assets offloaded to S3 enable rapid scale-out and instance recycling.
-
-3. Data Integrity & Resilience (SAP-C02 Standard)
-
-RDS Proxy
-Mitigates PHP connection storms and reduces failover impact.
-
-S3 Intelligent-Tiering
-Automatic cost optimization for wp-content and media assets.
-
-Aurora Global-Ready
-Architecture prepared for future cross-region read expansion.
-📉 Architecture Decision Records (ADR)
-<details> <summary><b>📊 Click to View Technology Selections</b></summary>
-Category	Selection	Justification
-Compute	Graviton4 (m8g)	Best price-performance for PHP 8.x
-Database	Aurora Serverless v2	Elastic scaling for bursty traffic
-Security	WAF + Shield	Edge-layer threat mitigation
-Operations	SSM Session Manager	Zero open inbound ports
-Storage	S3 + CloudFront	Stateless application tier
 </details>
-🚀 Future Roadmap
 
- Infrastructure as Code (Terraform)
+---
 
- Deep PHP query tracing via X-Ray
+## 💎 Technical Pillars (Interview-Grade Reasoning)
 
- Migration path to Amazon EKS (Fargate)
+### 1️⃣ Advanced Networking (ANS-C01)
+
+* **IPv6-first subnets** — Eliminates NAT Gateway dependency, avoids public IPv4 cost growth
+* **PrivateLink (VPC Endpoints)** — S3 / KMS traffic never leaves AWS backbone, deterministic latency & security boundary
+
+### 2️⃣ Compute & Cost Governance
+
+* **Graviton4 (m8g)** — ~40% better price-performance for PHP-FPM
+* **Stateless application tier** — All mutable state offloaded to S3 / Aurora; enables aggressive auto-scaling and recycling
+
+### 3️⃣ Data Integrity & Resilience (SAP-C02)
+
+* **RDS Proxy** — Absorbs PHP connection storms, smooth failovers
+* **Aurora Serverless v2** — Scales with unpredictable traffic, reader ready for cross-region expansion
+* **S3 Intelligent-Tiering** — Automatic lifecycle cost optimization
+
+---
+
+## 📊 Architecture Decision Records (ADR)
+
+| Area     | Decision             | Reasoning                         |
+| -------- | -------------------- | --------------------------------- |
+| Compute  | EC2 Graviton4 ASG    | Predictable latency, PHP maturity |
+| Database | Aurora Serverless v2 | Elastic scale, HA by default      |
+| Security | WAF + PrivateLink    | Edge filtering + zero-trust       |
+| Ops      | SSM (No SSH)         | No inbound management ports       |
+| Storage  | S3 + CloudFront      | Stateless design                  |
+
+---
+
+## 🚀 Future Roadmap
+
+* Infrastructure as Code (Terraform)
+* Deep PHP tracing with X-Ray subsegments
+* Migration path to **EKS on Fargate**
+* Aurora Global Database (read expansion)
+
+> **Positioning statement
