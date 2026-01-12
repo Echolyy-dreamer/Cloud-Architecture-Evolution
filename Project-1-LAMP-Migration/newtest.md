@@ -2,138 +2,164 @@
 
 ## 🌟 Executive Summary
 
-This project demonstrates the modernization of a legacy **LAMP (Linux, Apache, MySQL, PHP)** monolith from an on-premises data center into a production-grade AWS cloud-native architecture (2026-ready).
+This project demonstrates how a legacy **LAMP (Linux, Apache, MySQL, PHP)** monolith evolves from an on-premises server to a production-grade AWS cloud-native architecture (2026-ready).
 
-This is not a lift-and-shift exercise. The focus is on:
+Focus areas:
 
-* **IPv6-first cost governance** (Eliminating IPv4 address tax)
-* **Zero-trust & Private connectivity** (AWS PrivateLink & WAF)
-* **Stateless compute** (Graviton4) and managed serverless data tiers
+* **IPv6-first cost governance**
+* **Zero-trust & Private connectivity**
+* **Stateless compute** and managed serverless data tiers
 
 ---
 
 ## 🏗️ Architecture Evolution
 
-### 1️⃣ Core Business Path — L1 (The Revenue Flow)
+### 1️⃣ Overview
 
-This view highlights the revenue-critical request path. All operational and governance layers are hidden to focus on high-speed content delivery and data persistence.
-
-```mermaid
-flowchart TB
-    U["Global User (Dual-Stack)"]
-    CF["CloudFront Origin Shield"]
-    ALB["Application Load Balancer"]
-    ASG["EC2 ASG Graviton4 (m8g)"]
-    S3["S3 Static & Media"]
-    RP["RDS Proxy"]
-
-    subgraph DB["Aurora MySQL (Multi-AZ)"]
-        direction LR
-        RW["Writer"]
-        RO["Reader"]
-    end
-
-    U --> CF
-    CF -- "Dynamic Content" --> ALB --> ASG
-    CF -- "Static Assets" --> S3
-    ASG -- "Uploads" --> S3
-    ASG --> RP --> RW
-    RP -.->|Read Scaling| RO
-```
-
-🛡️ **Production-Grade Details (L2/L3 Enterprise Deep Dive)**
-
-<details>
-<summary><b>Click to Expand: Enterprise Security & Observability Layer</b></summary>
-
-This diagram exposes the non-obvious enterprise layers required for production readiness: private connectivity, encryption boundaries, and request-path observability.
+This diagram shows the evolution from a single on-prem instance to a scalable, observable AWS-native architecture.
 
 ```mermaid
 flowchart TB
-    %% GLOBAL
-    U["Global User"]
-
-    %% EDGE & COMPUTE
-    subgraph Edge["Edge & Compute Layer"]
-        CF["CloudFront"]
-        WAF["AWS WAF"]
-        ALB["ALB"]
-        ASG["EC2 ASG Graviton4"]
-        U --> CF --> WAF --> ALB --> ASG
+    %% ========================================================
+    %% TRADITIONAL ARCHITECTURE (LEGACY)
+    %% ========================================================
+    subgraph T ["❌ TRADITIONAL ARCHITECTURE — LEGACY MONOLITH"]
+        direction TB
+        U1["Global User (IPv4 Only)"]
+        subgraph OldServer ["Local Data Center / Single Instance"]
+            WEB1["Web Tier: Apache & PHP"]
+            DB1["Local MySQL Database"]
+            FS1["Local Direct Attached Storage"]
+        end
+        U1 --> WEB1
+        WEB1 --- DB1
+        WEB1 --- FS1
     end
 
-    %% DATA
-    subgraph Data["Data Layer"]
-        S3["S3 Intelligent-Tiering"]
-        RP["RDS Proxy"]
+    %% ========================================================
+    %% OPTIMIZED AWS BLUEPRINT
+    %% ========================================================
+    subgraph O ["✅ OPTIMIZED AWS CLOUD-NATIVE BLUEPRINT"]
+        direction TB
+        U2["Global User (Dual-Stack IPv4/v6)"]
 
-        subgraph Aurora["Aurora Serverless v2"]
-            direction LR
-            RW["Writer"] -.->|Sync Replication| RO["Reader"]
+        %% Edge Layer
+        CF["CloudFront + Origin Shield"]
+        WAF["AWS WAF (Edge Inspection)"]
+
+        %% Storage Tier
+        subgraph S_Tier ["Storage Tier"]
+            S3["S3 Intelligent-Tiering"]
+            GLC["S3 Glacier Deep Archive"]
         end
 
-        ASG --> RP --> Aurora
-        ASG -->|Media Offloading| S3
-        CF -->|Cached Assets| S3
-    end
+        %% Compute Tier
+        subgraph C_Tier ["Compute Tier"]
+            ALB["ALB (Dual-Stack)"]
+            ASG["ASG (m8g Graviton4 + Warm Pool)"]
+        end
 
-    %% OBSERVABILITY & CONTROL
-    subgraph Ops["Observability & Control"]
-        CW["CloudWatch"]
-        XR["X-Ray"]
-        KMS["KMS (Envelope Encryption)"]
-        VPCE["VPC Endpoints"]
-        SSM["SSM Session Manager"]
-    end
+        %% Distributed Data Tier
+        subgraph D_Tier ["Distributed Data Tier"]
+            direction TB
+            CACHE["ElastiCache Redis (Serverless)"]
+            Proxy["RDS Proxy"]
+            subgraph Aurora ["Aurora Cluster (Multi-AZ)"]
+                direction LR
+                RDSW["Primary Node (RW)"]
+                RDSR["Reader Node (RO)"]
+                RDSW -. Sync_Replication .-> RDSR
+            end
+        end
 
-    %% CONTROL FLOWS
-    ASG -.-> CW
-    ASG -.-> XR
-    ASG -.-> VPCE
-    VPCE -.-> S3
-    VPCE -.-> KMS
-    S3 --> GA["Glacier Deep Archive"]
+        %% Management & Governance
+        subgraph M_Tier ["Management & Governance"]
+            VPCE["VPC Endpoints (PrivateLink)"]
+            KMS["KMS (Envelope Encryption)"]
+            SSM["SSM Session Manager"]
+        end
+
+        %% Observability Plane
+        subgraph OBS ["Observability Plane (Request-Path Oriented)"]
+            METRICS["CloudWatch Metrics"]
+            LOGS["CloudWatch Logs"]
+            TRACE["X-Ray Traces"]
+        end
+
+        %% Core Routing
+        U2 --> CF
+        CF --> WAF
+        WAF -- Static_Path --> S3
+        WAF -- Default_PHP_Path --> ALB
+
+        %% Application Logic Flow
+        ALB --> ASG
+        ASG --> CACHE
+        ASG --> Proxy
+        Proxy -- Writes --> RDSW
+        Proxy -. Reads_Scaling .-> RDSR
+
+        %% Connectivity & Lifecycle
+        ASG -.-> VPCE
+        VPCE -.-> S3
+        VPCE -.-> KMS
+        S3 --> GLC
+
+        %% Observability Bindings
+        CF -. Edge_Trace .-> TRACE
+        ALB -. Request_Trace .-> TRACE
+        ASG -. App_Segments .-> TRACE
+        Proxy -. DB_Segments .-> TRACE
+
+        ASG -. App_Logs .-> LOGS
+        ALB -. Access_Logs .-> LOGS
+        WAF -. Security_Logs .-> LOGS
+
+        CACHE -. Hit_Rate .-> METRICS
+        Proxy -. Conn_Pool_Usage .-> METRICS
+        RDSR -. Replica_Lag .-> METRICS
+        ASG -. Scaling_Events .-> METRICS
+    end
 ```
-
-</details>
 
 ---
 
-## 💎 Technical Pillars (Architectural Reasoning)
+## 💎 Technical Pillars
 
-### 1️⃣ Advanced Networking 
+1. **Advanced Networking**
 
-* IPv6-First Subnets: Eliminates NAT Gateway dependency and avoids the rising costs of Public IPv4 addresses.
-* PrivateLink (VPC Endpoints): S3 and KMS traffic never leaves the AWS backbone, ensuring deterministic latency and a hard security boundary.
+   * IPv6-first subnets: Avoid NAT Gateway costs, deterministic latency.
+   * PrivateLink (VPC Endpoints): Traffic to S3/KMS never leaves AWS backbone.
 
-### 2️⃣ Compute & Cost Governance
+2. **Compute & Cost Governance**
 
-* Graviton4 (m8g): Achieves ~40% better price-performance for PHP-FPM workloads compared to x86 equivalents.
-* Stateless Tiering: All mutable state is offloaded to S3 or Aurora, allowing the ASG to scale aggressively and instances to be recycled without data loss.
+   * Graviton4 (m8g): ~40% better price-performance for PHP-FPM.
+   * Stateless Tiering: Offload mutable state to S3/Aurora, scale aggressively.
 
-### 3️⃣ Data Resilience 
+3. **Data Resilience**
 
-* RDS Proxy: Absorbs connection "storms" typical of PHP applications and enables seamless failover by reducing recovery time by up to 60%.
-* Aurora Serverless v2: Provides elastic scaling (0.5 to 128 ACUs) to match unpredictable traffic while maintaining High Availability.
-* S3 Intelligent-Tiering: Automatic lifecycle management to move aged media to cheaper storage tiers (Glacier) without application changes.
+   * RDS Proxy: Absorb PHP connection storms, seamless failover.
+   * Aurora Serverless v2: Elastic scaling 0.5–128 ACUs, High Availability.
+   * S3 Intelligent-Tiering: Lifecycle moves aged media to Glacier.
 
 ---
 
 ## 📊 Architecture Decision Records (ADR)
 
-| Area     | Decision             | Reasoning                                                               |
-| -------- | -------------------- | ----------------------------------------------------------------------- |
-| Compute  | EC2 Graviton4 ASG    | Optimized for PHP JIT performance; significantly lower TCO than R7i     |
-| Database | Aurora Serverless v2 | Handles bursty traffic; sub-minute failover via RDS Proxy               |
-| Security | WAF + PrivateLink    | Edge-layer filtering combined with Zero-Trust internal connectivity     |
-| Ops      | SSM (No SSH)         | Eliminates Bastion Hosts; audit-trailed access via IAM                  |
-| Storage  | S3 + CloudFront      | Decoupling static assets from the compute layer to enable stateless EC2 |
+| Area     | Decision             | Reasoning                          |
+| -------- | -------------------- | ---------------------------------- |
+| Compute  | EC2 Graviton4 ASG    | Optimized for PHP JIT; lower TCO   |
+| Database | Aurora Serverless v2 | Burst traffic; sub-minute failover |
+| Security | WAF + PrivateLink    | Edge-layer filtering + Zero-Trust  |
+| Ops      | SSM (No SSH)         | No Bastion, IAM-tracked access     |
+| Storage  | S3 + CloudFront      | Stateless compute tier             |
 
 ---
 
 ## 🚀 Future Roadmap
 
-* [ ] Infrastructure as Code: Full deployment via Terraform/CDK.
-* [ ] Observability: Implementing deep PHP tracing with X-Ray subsegments.
-* [ ] Containerization: Migration path to EKS on Fargate for microservices.
-* [ ] Global Scale: Implementation of Aurora Global Database for sub-second cross-region DR.
+* [ ] Infrastructure as Code: Terraform/CDK.
+* [ ] Observability: Deep PHP tracing via X-Ray.
+* [ ] Containerization: Migrate to EKS/Fargate.
+* [ ] Global Scale: Aurora Global Database for sub-second cross-region DR.
+
