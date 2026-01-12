@@ -1,112 +1,163 @@
-🔄 Cache Consistency Strategy (CloudFront + Redis + Aurora)
+# Project 1: LAMP Stack Modernization & Cloud-Native Evolution
 
-This architecture adopts a path-scoped consistency model rather than attempting global strong consistency across all cache layers.
+## 🌟 Executive Summary
+This project demonstrates the modernization of a legacy **LAMP (Linux, Apache, MySQL, PHP)** monolith into a **2026-ready AWS cloud-native architecture**.
 
-The system contains three potential caching layers:
+This is not a lift-and-shift exercise. The design emphasizes:
+- **IPv6-first cost governance**
+- **Zero-trust & private connectivity**
+- **Stateless compute with managed data tiers**
+- **Architect-level trade-off reasoning (SAP-C02 & ANS-C01 aligned)**
 
-CloudFront (Edge Cache) – Static assets and selectively cached dynamic responses
+---
 
-Redis (Application Cache) – Cache-Aside pattern
+## 🏗️ Architecture Evolution
 
-Aurora MySQL – Source of Truth (transactional consistency)
+### 1️⃣ Core Business Path — L1 (Revenue Flow)
 
-Consistency guarantees are enforced per request path, based on business criticality.
+```mermaid
+flowchart TB
+    U["Global User (Dual-Stack)"]
+    CF["CloudFront + Origin Shield"]
+    ALB["Application Load Balancer"]
+    ASG["EC2 ASG Graviton4 (m8g)"]
+    S3["S3 Static & Media"]
+    RP["RDS Proxy"]
 
-🧱 Read & Write Model
-Read Path (Dynamic Content)
-Client
- → CloudFront (MISS or bypass)
-   → ALB
-     → PHP Application
-       → Redis (Cache-Aside)
-         → Aurora MySQL
+    subgraph DB["Aurora MySQL (Multi-AZ)"]
+        direction LR
+        RW["Writer"]
+        RO["Reader"]
+    end
 
+    U --> CF
+    CF -- Dynamic --> ALB --> ASG
+    CF -- Static --> S3
+    ASG -- Uploads --> S3
+    ASG --> RP --> RW
+    RP -.->|Read Scaling| RO
+```
 
-Redis is accessed using a cache-aside strategy
+---
 
-Aurora remains the authoritative data source
+### 2️⃣ Production-Grade Details — L2/L3 (Enterprise Deep Dive)
 
-CloudFront acts as a routing and acceleration layer, not a consistency layer
+```mermaid
+flowchart TB
+    U["Global User"]
 
-Write Path
-PHP Application
- → Aurora MySQL (COMMIT)
-   → Redis Invalidation
-   → Optional CloudFront Invalidation
+    subgraph Edge["Edge & Compute"]
+        CF["CloudFront"]
+        WAF["AWS WAF"]
+        ALB["ALB"]
+        ASG["ASG (Graviton4)"]
+        U --> CF --> WAF --> ALB --> ASG
+    end
 
+    subgraph Data["Data Layer"]
+        S3["S3 Intelligent-Tiering"]
+        RP["RDS Proxy"]
 
-Writes are always persisted to Aurora first
+        subgraph Aurora["Aurora Serverless v2"]
+            direction LR
+            RW["Writer"] -.->|Sync| RO["Reader"]
+        end
 
-Cache invalidation occurs after successful database commit
+        ASG --> RP --> Aurora
+        ASG --> S3
+        CF --> S3
+    end
 
-No write-through or write-behind caching is used
+    subgraph Ops["Observability & Control"]
+        CW["CloudWatch"]
+        XR["X-Ray"]
+        KMS["KMS"]
+        VPCE["VPC Endpoints"]
+        SSM["SSM"]
+    end
 
-🔐 Strong Consistency Paths (Critical Business Flows)
+    ASG -.-> CW
+    ASG -.-> XR
+    ASG -.-> VPCE
+    VPCE -.-> S3
+    VPCE -.-> KMS
+    S3 --> GA["Glacier Deep Archive"]
+```
 
-For strong consistency requirements (e.g. checkout, payment, user profile updates), the architecture explicitly bypasses all cache layers.
+---
 
-CloudFront Behavior Configuration
-Setting	Value
-Cache Policy	CachingDisabled
-TTL	0
-Forward Headers	All
-Forward Cookies	All
-Authorization	Enabled
-Application Behavior
+## 🔁 Cache & Data Consistency Strategy (Critical Design)
 
-Redis is not consulted
+### Cache Pattern Used
+- **Redis follows Cache-Aside pattern**
+- Aurora MySQL is the **only source of truth**
+- Redis and CloudFront are **performance optimizations, not consistency authorities**
 
-MySQL transactions provide consistency guarantees
+### Failure Scenario: DB Commit Succeeds, App Crashes Before Cache Delete
+This architecture explicitly accepts a small inconsistency window and mitigates it via:
+- Short Redis TTLs
+- CloudFront dynamic-path cache bypass
+- Read-repair on subsequent requests
 
-Consistency scope is limited to the request lifecycle
+This trade-off is **industry-accepted** for non-financial workloads.
 
-Strong consistency is achieved by path-level cache bypass, not cache synchronization.
+### Stronger Guarantees (Critical Business Paths)
+For highly critical data:
+- **Transactional Outbox Pattern**
+- Cache invalidation decoupled from application lifecycle
+- Binlog/CDC-driven Lambda invalidates Redis asynchronously
 
-🧠 Redis Cache Strategy (Cache-Aside with Version Guard)
+This achieves **deterministic eventual consistency (>99.999%)** without tight coupling.
 
-Redis follows a cache-aside pattern with versioned keys to prevent stale overwrites.
+### Versioned Keys (Logical Invalidation)
+- Redis keys include logical version numbers
+- Writers bump version; readers always fetch latest
+- Reduces delete storms and Redis CPU spikes
 
-Key Design
-user:{user_id}:v{version}
+**Operational Requirements**
+- Redis eviction: `allkeys-lru`
+- Mandatory TTLs on all keys
 
-Write Logic
-UPDATE users
-SET name = ?, version = version + 1
-WHERE id = ?
+### CloudFront Strong-Consistency Paths
+- Sensitive paths use `CachingDisabled`
+- Origin Request Policy forwards all headers, cookies, and query strings
+- Application layer owns session correctness
 
+---
 
-Each update increments a version field
+## 💎 Technical Pillars
 
-Cache keys are naturally invalidated by version mismatch
+### Advanced Networking (ANS-C01)
+- IPv6-only subnets
+- Egress-only Internet Gateway
+- VPC Endpoints for S3 & KMS
 
-Prevents race conditions where stale data overwrites newer values
+### Compute & Cost Governance
+- Graviton4 (m8g): ~40% better price-performance
+- Stateless ASG for aggressive scaling
 
-This approach avoids the complexity of distributed locking while ensuring logical consistency.
+### Data Resilience (SAP-C02)
+- RDS Proxy absorbs PHP connection storms
+- Aurora Serverless v2 elastic scaling
+- S3 Intelligent-Tiering lifecycle automation
 
-🌍 CloudFront Caching Strategy for Dynamic Content
+---
 
-Dynamic paths are handled using minimal TTL or explicit invalidation, rather than long-lived edge caching.
+## 📊 Architecture Decision Records (ADR)
 
-Content Type	Strategy
-Static Assets	Immutable filenames + long TTL
-Semi-dynamic	Short TTL (0–5s)
-Strong consistency paths	Cache disabled
+| Area | Decision | Reasoning |
+|---|---|---|
+| Compute | Graviton4 ASG | Best PHP price-performance |
+| Database | Aurora Serverless v2 | Bursty traffic handling |
+| Cache | Redis Cache-Aside | Simplicity & control |
+| Security | WAF + PrivateLink | Zero-trust |
+| Ops | SSM (No SSH) | Audit & security |
+| Storage | S3 + CloudFront | Stateless design |
 
-This ensures perceived consistency without introducing cache coordination complexity.
+---
 
-🧩 Consistency Design Principle
-
-Consistency is enforced per request path, not globally.
-
-This design intentionally avoids multi-layer strong consistency, which is costly and fragile at scale.
-Instead, it combines explicit cache bypass, versioned cache keys, and transactional data ownership.
-
-🎯 Interview-Grade Summary
-
-Redis uses cache-aside, not write-through
-
-Aurora MySQL is the single source of truth
-
-CloudFront caching is selective and policy-driven
-
-Strong consistency is guaranteed by path-based cache exclusion
+## 🚀 Future Roadmap
+- Infrastructure as Code (Terraform/CDK)
+- Deep X-Ray subsegment tracing
+- EKS on Fargate migration path
+- Aurora Global Database
