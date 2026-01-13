@@ -1,0 +1,14 @@
+## AWS LAMP Architecture Mapping: Requirements → Solutions → Design Justification
+
+| Customer Concern / Requirement | Suggested AWS Solution | Design Justification |
+|-------------------------------|----------------------|-------------------|
+| Scaling to meet demand (uncertain growth) | ASG (Auto Scaling Group) + Aurora Serverless v2 | 利用 Target Tracking Scaling 根据流量自动增减 EC2 实例数量；Aurora Serverless 则根据负载毫秒级扩展数据库计算能力，避免过早过度配置。 |
+| Lack of Provision for Disaster Recovery (DR) | Multi-AZ Deployment + Cross-Region Backup | 在 3 个可用区部署应用，实现 High Availability；使用 Aurora Global Database 或跨区域快照复制，作为异地灾备方案。 |
+| High performance and throughput (DB & Access) | Amazon Aurora + RDS Proxy | Aurora 提供远超传统 MySQL 的吞吐量；RDS Proxy 维护连接池，防止 PHP 短连接在高峰期压垮数据库。 |
+| Low latency for far away users | Amazon CloudFront (CDN) + WAF | 通过全球边缘节点（Edge Locations）缓存静态内容，极大缩短海外用户的 Time to First Byte (TTFB)。 |
+| Effective distribution of load | Application Load Balancer (ALB) | 在 L7 层根据请求压力、URL 路径或主机名，将流量公平且智能地分发到健康的后端实例。 |
+| Self-healing infrastructure (failed instances) | ALB L7 Health Checks + ASG replacement | ALB 监控 PHP 状态页，若实例响应异常，ASG 会根据 Launch Template 自动销毁旧实例并拉起新实例，无需人工干预。 |
+| Security of data at rest and in transit | AWS KMS + AWS ACM (SSL/TLS) | ACM 负责 HTTPS 证书全自动管理和续期；KMS 对 EBS、RDS、EFS 和 S3 进行 AES-256 位静态加密。 |
+| Securing access as the team expands | IAM Identity Center (SSO) + RBAC | 建立基于角色的访问控制（Role-Based Access Control），为新员工提供最小权限，避免使用共享账号和 Root 账号。 |
+| Archival strategy (> 6 months) | S3 Lifecycle Policies + Glacier | 设置生命周期规则，自动将 180 天前的文件流转至 S3 Glacier Flexible Retrieval，大幅降低长期存储成本。 |
+| Easy manage and replicate environments | Infrastructure as Code (IaC) via CloudFormation | 将整个架构定义为模板（Blueprint），通过一键部署参数化模板，快速克隆开发、测试或生产环境。 |
