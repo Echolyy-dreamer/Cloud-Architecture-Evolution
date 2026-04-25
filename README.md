@@ -8,6 +8,8 @@
 - **Challenge:** Transforming a single-point-of-failure LAMP server into a resilient, auto-scaling AWS environment.
 - **Key Tech:** ALB, ASG, Multi-AZ RDS, ElastiCache, S3.
 
+https://github.com/Echolyy-dreamer/Cloud-Architecture-Evolution/tree/main/Project-1-LAMP-Migration
+
 ### [2. Project-2: Global Financial Clearing System](./Project-2-Global-Clearing)
 **Focus:** Low-Latency, Data Integrity, Cross-Region Connectivity.
 - **Challenge:** Solving the "Speed of Light" constraint for trade clearing between London and Singapore.
