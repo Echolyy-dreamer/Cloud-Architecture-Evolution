@@ -15,7 +15,7 @@ https://github.com/Echolyy-dreamer/Cloud-Architecture-Evolution/tree/main/Projec
 - **Challenge:** Solving the "Speed of Light" constraint for trade clearing between London and Singapore.
 - **Key Tech:** Global Accelerator, Aurora Global Database, Transit Gateway Peering.
 
-
 https://github.com/Echolyy-dreamer/Cloud-Architecture-Evolution/tree/main/Project-2-Global-Clearing
+
 ---
 *“Architecture is the art of balancing trade-offs.”*
